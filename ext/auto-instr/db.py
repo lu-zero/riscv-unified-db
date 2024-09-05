@@ -209,6 +209,10 @@ def make_yaml(instr_dict):
         # Sort variables in descending order based on the start of the bit range
         variables.sort(key=lambda x: int(x['location'].split('-')[0].split('|')[0]), reverse=True)
 
+        if "-" not in match:
+            match = '"'+ match + '"'
+            print (match)
+
         result = {
             'match': match,
             'variables': variables
@@ -348,7 +352,6 @@ def make_yaml(instr_dict):
                             'to': f"{pseudo} {assembly}",
                         })
             
-            
             #  Add origininstruction field for pseudo instructions
             if instr_data.get('is_pseudo', False):
                 yaml_content[instr_name_with_periods]['origininstruction'] = instr_data['orig_inst'].replace('_', '.')
@@ -375,7 +378,7 @@ def make_yaml(instr_dict):
             yaml_string = yaml_string.replace("'[", "[").replace("]'","]").replace("'-","-").replace("0'","0").replace("1'","1").replace("-'","-")
             yaml_string = re.sub(r'description: (.+)', lambda m: f'description: |\n      {m.group(1)}', yaml_string)
             yaml_string = re.sub(r'operation: (.+)', lambda m: f'operation(): |\n      {""}', yaml_string)
-
+            yaml_string = yaml_string.replace ('"',"")
 
 
             # Write to file
