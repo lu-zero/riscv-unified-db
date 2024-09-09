@@ -55,6 +55,21 @@ def combine_imm_fields(imm_fields):
     else:
         return 'imm'    
 
+def get_variables(instr_data):
+    encoding = instr_data['encoding']
+    var_fields = instr_data.get('variable_fields', [])
+    
+    variables = {}
+    for field_name in var_fields:
+        if field_name in arg_lut:
+            start_bit, end_bit = arg_lut[field_name]
+            variables[field_name] = {
+                'field_name': field_name,
+                'match': encoding[31-start_bit:32-end_bit],
+                'start_bit': start_bit,
+                'end_bit': end_bit
+            }
+    return variables
 
 
 def make_yaml(instr_dict):
@@ -150,7 +165,6 @@ def make_yaml(instr_dict):
     def make_yaml_encoding(instr_name, instr_data):
         encoding = instr_data['encoding']
         var_fields = instr_data.get('variable_fields', [])
-
         match = ''.join([bit if bit != '-' else '-' for bit in encoding])
 
         variables = []
@@ -211,31 +225,26 @@ def make_yaml(instr_dict):
 
         if "-" not in match:
             match = '"'+ match + '"'
-            print (match)
 
         result = {
             'match': match,
             'variables': variables
         }
 
+        ##if any of the variables is in the left shift dictionary, it adds a field
+        # 'left_shit' with it's variable has
+        for var in var_fields:
+            if var in left_shift:
+                # If a variable is found in left_shift, add a 'left_shift' field to the result
+                for variable in result['variables']:
+                    if variable['name'] == 'imm':
+                        variable['left_shift'] = left_shift[var]
+                        break
+                    break
+            break
         return result
         
     def get_yaml_encoding_diff(instr_data_original, pseudo_instructions):
-        def get_variables(instr_data):
-            encoding = instr_data['encoding']
-            var_fields = instr_data.get('variable_fields', [])
-            
-            variables = {}
-            for field_name in var_fields:
-                if field_name in arg_lut:
-                    start_bit, end_bit = arg_lut[field_name]
-                    variables[field_name] = {
-                        'field_name': field_name,
-                        'match': encoding[31-start_bit:32-end_bit],
-                        'start_bit': start_bit,
-                        'end_bit': end_bit
-                    }
-            return variables
 
         original_vars = get_variables(instr_data_original)
         differences = {}

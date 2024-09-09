@@ -20,11 +20,11 @@ asciidoc_mapping['zimm'] = 'uimm'
 asciidoc_mapping['shamtw'] = 'shamt'
 asciidoc_mapping['shamtd'] = 'shamt'
 asciidoc_mapping['shamtq'] = 'shamt'
-asciidoc_mapping['rd_p'] = "rd'"
-asciidoc_mapping['rs1_p'] = "rs1'"
-asciidoc_mapping['rs2_p'] = "rs2'"
+asciidoc_mapping['rd_p'] = "rd"
+asciidoc_mapping['rs1_p'] = "rs1"
+asciidoc_mapping['rs2_p'] = "rs2"
 asciidoc_mapping['rd_rs1_n0'] = 'rd/rs!=0'
-asciidoc_mapping['rd_rs1_p'] = "rs1'/rs2'"
+asciidoc_mapping['rd_rs1_p'] = 'rs1/rs2'
 asciidoc_mapping['c_rs2'] = 'rs2'
 asciidoc_mapping['c_rs2_n0'] = 'rs2!=0'
 asciidoc_mapping['rd_n0'] = 'rd!=0'
@@ -64,3 +64,9 @@ asciidoc_mapping['c_uimm9sphi'] = 'uimm[5]'
 asciidoc_mapping['c_uimm10sp_s'] = 'uimm[5:4|9:6]'
 asciidoc_mapping['c_uimm9sp_s'] = 'uimm[5:3|8:6]'
 
+
+#0 is the number that represents ambiguous results on here
+
+left_shift = {}
+left_shift['imm20'] = 0  #JAL = 1, LUI,AUIPC = 20
+left_shift['bimm12hi'] = 1
