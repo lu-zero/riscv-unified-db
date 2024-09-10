@@ -409,7 +409,7 @@ if __name__ == "__main__":
     print(f'Extensions selected : {extensions}')
 
     if '-yaml' in sys.argv[1: ]:
-        instr_dict = create_inst_dict(extensions)  # make sure instr_dict is created
+        instr_dict = create_inst_dict(extensions,True)  # make sure instr_dict is created
         make_yaml(instr_dict)
         logging.info('instr.yaml generated successfully')
 
