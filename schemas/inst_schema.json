@@ -26,11 +26,6 @@
         "location": {
           "$ref": "#/$defs/field_location"
         },
-        "sign_extend": {
-          "type": "boolean",
-          "default": false,
-          "description": "Whether or not the field should be sign extended when used"
-        },
         "left_shift": {
           "type": "integer",
           "default": 0,

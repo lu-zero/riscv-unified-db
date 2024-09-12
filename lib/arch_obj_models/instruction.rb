@@ -75,11 +75,9 @@ class Instruction < ArchDefObject
       Idl::Var.new("__effective_xlen", Idl::Type.new(:bits, width: 7), effective_xlen)
     )
     @encodings[effective_xlen].decode_variables.each do |d|
-      qualifiers = []
-      qualifiers << :signed if d.sext?
       width = d.size
 
-      var = Idl::Var.new(d.name, Idl::Type.new(:bits, qualifiers:, width:), decode_var: true)
+      var = Idl::Var.new(d.name, Idl::Type.new(:bits, width:), decode_var: true)
       symtab.add(d.name, var)
     end
 
@@ -343,7 +341,6 @@ class Instruction < ArchDefObject
       @inst = inst
       @name = field_data["name"]
       @left_shift = field_data["left_shift"].nil? ? 0 : field_data["left_shift"]
-      @sext = field_data["sign_extend"].nil? ? false : field_data["sign_extend"]
       @alias = field_data["alias"].nil? ? nil : field_data["alias"]
       extract_location(field_data["location"])
       @excludes =
@@ -399,11 +396,6 @@ class Instruction < ArchDefObject
       bits.reduce(0) { |sum, f| sum + (f.is_a?(Integer) ? 1 : f.size) }
     end
 
-    # true if the field should be sign extended
-    def sext?
-      @sext
-    end
-
     # return code to extract the field
     def extract
       ops = []
@@ -426,7 +418,6 @@ class Instruction < ArchDefObject
         else
           ops[0]
         end
-      ops = "sext(#{ops})" if sext?
       ops
     end
   end

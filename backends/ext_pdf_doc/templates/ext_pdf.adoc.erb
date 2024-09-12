@@ -393,7 +393,7 @@ RV32::
 [source,idl]
 ----
 <%- i.decode_variables(32).each do |d| -%>
-<%= d.sext? ? 'signed ' : '' %>Bits<<%= d.size %>> <%= d.name %> = <%= d.extract %>;
+Bits<<%= d.size %>> <%= d.name %> = <%= d.extract %>;
 <%- end -%>
 ----
 
@@ -402,14 +402,14 @@ RV64::
 [source,idl]
 ----
 <%- i.decode_variables(64).each do |d| -%>
-<%= d.sext? ? 'signed ' : '' %>Bits<<%= d.size %>> <%= d.name %> = <%= d.extract %>;
+Bits<<%= d.size %>> <%= d.name %> = <%= d.extract %>;
 <%- end -%>
 ----
 <%- else -%>
 [source,idl,subs="specialchars,macros"]
 ----
 <%- i.decode_variables(i.base.nil? ? 64 : i.base).each do |d| -%>
-<%= d.sext? ? 'signed ' : '' %>Bits<<%= d.size %>> <%= d.name %> = <%= d.extract %>;
+Bits<<%= d.size %>> <%= d.name %> = <%= d.extract %>;
 <%- end -%>
 ----
 <%- end -%>
