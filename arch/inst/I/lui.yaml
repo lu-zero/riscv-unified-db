@@ -6,7 +6,7 @@ lui:
   definedBy: I
   assembly: xd, imm
   encoding:
-    match: -------------------------0110011
+    match: -------------------------0110111
     variables:
     - name: imm
       location: 31-12

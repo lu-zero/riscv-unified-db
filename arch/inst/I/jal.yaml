@@ -13,7 +13,6 @@ jal:
     - name: imm
       location: 31|19-12|20|30-21
       left_shift: 1
-      sign_extend: true
     - name: rd
       location: 11-7
   access:
