@@ -110,7 +110,7 @@ def make_yaml(instr_dict):
         imm_args = []
 
         for field in var_fields:
-            mapped_field = asciidoc_mapping.get(field, field)
+            mapped_field = variable_mapping.get(field, field)
             if '!=' in mapped_field:
                 # Remove '!='
                 mapped_field = mapped_field.replace('!=', '')[:-1]
@@ -175,8 +175,8 @@ def make_yaml(instr_dict):
         imm_locations = []
 
         for field_name in var_fields:
-            if field_name in asciidoc_mapping:
-                mapped_name = asciidoc_mapping[field_name]
+            if field_name in variable_mapping:
+                mapped_name = variable_mapping[field_name]
                 if '[' in mapped_name and ']' in mapped_name and (mapped_name.startswith('imm') or mapped_name.startswith('uimm') or mapped_name.startswith('nzimm')):
                     # This is an immediate field
                     imm_locations.extend(parse_imm_location(field_name, mapped_name))
@@ -188,7 +188,7 @@ def make_yaml(instr_dict):
                         'location': f'{start_bit}-{end_bit}'
                     })
             else:
-                # If not in asciidoc_mapping, use the original field name and bit range
+                # If not in variable_mapping, use the original field name and bit range
                 start_bit, end_bit = arg_lut[field_name]
                 variables.append({
                     'name': field_name,
