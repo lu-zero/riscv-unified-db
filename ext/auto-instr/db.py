@@ -111,6 +111,10 @@ def make_yaml(instr_dict):
 
         for field in var_fields:
             mapped_field = asciidoc_mapping.get(field, field)
+            if '!=' in mapped_field:
+                # Remove '!='
+                mapped_field = mapped_field.replace('!=', '')[:-1]
+
             if ('imm' in field) or ('offset' in field):
                 imm_args.append(mapped_field)
             else:
@@ -242,6 +246,13 @@ def make_yaml(instr_dict):
                         break
                     break
             break
+
+
+        for variable in result['variables']:
+            if '!=' in variable['name']:
+                variable['not'] = variable['name'][-1]
+                variable['name'] = variable['name'].replace('!=', '')[:-1]
+
         return result
         
     def get_yaml_encoding_diff(instr_data_original, pseudo_instructions):
@@ -388,6 +399,7 @@ def make_yaml(instr_dict):
             yaml_string = re.sub(r'description: (.+)', lambda m: f'description: |\n      {m.group(1)}', yaml_string)
             yaml_string = re.sub(r'operation: (.+)', lambda m: f'operation(): |\n      {""}', yaml_string)
             yaml_string = yaml_string.replace ('"',"")
+            yaml_string = re.sub(r"not: '(\d+)", r"not: \1", yaml_string)
 
 
             # Write to file
