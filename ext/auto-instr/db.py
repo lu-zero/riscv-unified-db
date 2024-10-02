@@ -202,7 +202,6 @@ def make_yaml(instr_dict):
             # Merge adjacent ranges based on encoding bits
             merged_parts = []
             current_range = None
-            print(imm_locations)
             for real_bit, encoding_bit in imm_locations:
                 if current_range is None:
                     current_range = [encoding_bit, encoding_bit, real_bit, real_bit]
@@ -214,10 +213,7 @@ def make_yaml(instr_dict):
                     current_range = [encoding_bit, encoding_bit, real_bit, real_bit]
 
             if all(x != 0 for x, y in imm_locations):
-                print("there are left_shifts in ", instr_name)
                 last_x = imm_locations[-1][0]
-                print(f"The last x value is: {last_x}")
-
 
             if current_range:
                 merged_parts.append(tuple(current_range))
@@ -237,10 +233,7 @@ def make_yaml(instr_dict):
                     'name': 'imm',
                     'location': imm_location
                 })
-            
-            #     variables.append({
-            #     })
-            
+                   
 
         # Sort variables in descending order based on the start of the bit range
         variables.sort(key=lambda x: int(x['location'].split('-')[0].split('|')[0]), reverse=True)
@@ -293,17 +286,26 @@ def make_yaml(instr_dict):
 
     def get_yaml_definedby(instr_data):
         defined_by = set()
+        has_zb_extension = False
+
         for ext in instr_data['extension']:
             parts = ext.split('_')
             if len(parts) > 1:
                 # Handle cases like 'rv32_d_zicsr'
                 for part in parts[1:]:
+                    if part.lower().startswith('zb'):
+                        has_zb_extension = True
                     defined_by.add(part.capitalize())
             else:
+                if ext.lower().startswith('zb'):
+                    has_zb_extension = True
                 defined_by.add(ext.capitalize())
-        
-        return f"[{', '.join(sorted(defined_by))}]"
 
+        # Add 'B' extension if any 'Zb' extensions were found
+        if has_zb_extension:
+            defined_by.add('B')
+
+        return f"[{', '.join(sorted(defined_by))}]"
 
 
     def get_yaml_base(instr_data):
