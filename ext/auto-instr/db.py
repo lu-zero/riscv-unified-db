@@ -173,7 +173,6 @@ def make_yaml(instr_dict):
 
         variables = []
         imm_locations = []
-
         for field_name in var_fields:
             if field_name in variable_mapping:
                 mapped_name = variable_mapping[field_name]
@@ -194,7 +193,7 @@ def make_yaml(instr_dict):
                     'name': field_name,
                     'location': f'{start_bit}-{end_bit}'
                 })
-
+        last_x = 0
         # Add merged immediate field if there are any immediate parts
         if imm_locations:
             # Sort immediate parts by their real bit position (descending order)
@@ -203,6 +202,7 @@ def make_yaml(instr_dict):
             # Merge adjacent ranges based on encoding bits
             merged_parts = []
             current_range = None
+            print(imm_locations)
             for real_bit, encoding_bit in imm_locations:
                 if current_range is None:
                     current_range = [encoding_bit, encoding_bit, real_bit, real_bit]
@@ -212,17 +212,35 @@ def make_yaml(instr_dict):
                 else:
                     merged_parts.append(tuple(current_range))
                     current_range = [encoding_bit, encoding_bit, real_bit, real_bit]
+
+            if all(x != 0 for x, y in imm_locations):
+                print("there are left_shifts in ", instr_name)
+                last_x = imm_locations[-1][0]
+                print(f"The last x value is: {last_x}")
+
+
             if current_range:
                 merged_parts.append(tuple(current_range))
             
             # Convert merged parts to string representation
             imm_location = '|'.join([f'{start}' if start == end else f'{start}-{end}' 
                                     for start, end, _, _ in merged_parts])
+            if(last_x != 0):
+                variables.append({
+                    'name': 'imm',
+                    'location': imm_location,
+                    'left_shift': last_x
+
+                })
+            else:
+                variables.append({
+                    'name': 'imm',
+                    'location': imm_location
+                })
             
-            variables.append({
-                'name': 'imm',
-                'location': imm_location
-            })
+            #     variables.append({
+            #     })
+            
 
         # Sort variables in descending order based on the start of the bit range
         variables.sort(key=lambda x: int(x['location'].split('-')[0].split('|')[0]), reverse=True)
@@ -234,18 +252,6 @@ def make_yaml(instr_dict):
             'match': match,
             'variables': variables
         }
-
-        ##if any of the variables is in the left shift dictionary, it adds a field
-        # 'left_shit' with it's variable has
-        for var in var_fields:
-            if var in left_shift:
-                # If a variable is found in left_shift, add a 'left_shift' field to the result
-                for variable in result['variables']:
-                    if variable['name'] == 'imm':
-                        variable['left_shift'] = left_shift[var]
-                        break
-                    break
-            break
 
 
         for variable in result['variables']:

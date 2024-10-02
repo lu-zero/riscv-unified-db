@@ -63,10 +63,3 @@ variable_mapping['c_uimm9splo'] = 'uimm[4:3|8:6]'
 variable_mapping['c_uimm9sphi'] = 'uimm[5]'
 variable_mapping['c_uimm10sp_s'] = 'uimm[5:4|9:6]'
 variable_mapping['c_uimm9sp_s'] = 'uimm[5:3|8:6]'
-
-
-#0 is the number that represents ambiguous results on here
-
-left_shift = {}
-left_shift['imm20'] = 0  #JAL = 1, LUI,AUIPC = 20
-left_shift['bimm12hi'] = 1
