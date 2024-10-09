@@ -71,8 +71,30 @@ def get_variables(instr_data):
             }
     return variables
 
+def make_pseudo_list(inst_dict):
+    '''
+    This function goes through the instruction dictionary (inst_dict),
+    finds the original instructions and their corresponding pseudoinstructions,
+    and prints a list in the format: originalinstruction: pseudoinstruction
+    '''
+    # Initialize a dictionary to store the relationships
+    pseudo_map = {}
 
-def make_yaml(instr_dict):
+    # Iterate through the instruction dictionary
+    for original_instr_name, original_instr_data in inst_dict.items():
+        
+        original_instruction = original_instr_name
+        
+        # Iterate again to compare with other instructions
+        for instr_name, instr_data in inst_dict.items():
+            if 'original_instruction' in instr_data and original_instruction == instr_data['original_instruction']:
+                # Add the instruction to the dictionary
+                if original_instruction not in pseudo_map:
+                    pseudo_map[original_instruction] = []
+                pseudo_map[original_instruction].append(instr_name)
+    return pseudo_map
+
+def make_yaml(instr_dict, pseudo_map):
     def get_yaml_long_name(instr_name):
         current_dir = os.path.dirname(os.path.realpath(__file__))
         synopsis_file = os.path.join(current_dir, "synopsis")
@@ -361,6 +383,39 @@ def make_yaml(instr_dict):
                 },
             }
 
+            if instr_name in pseudo_map:
+                yaml_content[instr_name_with_periods]['pseudoinstructions'] = []
+                pseudo_instructions = {pseudo.replace('.', '_'): instr_dict[pseudo.replace('.', '_')] for pseudo in pseudo_map[instr_name]}
+                encoding_diffs = get_yaml_encoding_diff(instr_data, pseudo_instructions)
+
+                for pseudo in pseudo_map[instr_name]:
+                    assembly = get_yaml_assembly(pseudo.replace('.', '_'), instr_dict)
+                    diff_info = encoding_diffs.get(pseudo.replace('.', '_'), {})
+                    when_condition = get_yaml_assembly(instr_name, instr_dict).replace(assembly, "").replace(",", "")
+
+                    if diff_info:
+                        diff_str_list = []
+                        for field, details in diff_info.items():
+                            pseudo_value = details['pseudo_value']
+
+                            # Check if the pseudo_value is a valid binary string (i.e., contains only '0' or '1')
+                            if all(c in '01' for c in pseudo_value):
+                                # Convert valid binary to hex and apply the new format
+                                diff_str_list.append(f"({field} == {hex(int(pseudo_value, 2))})")
+                            else:
+                                # Keep original pseudo_value if not binary and apply the new format
+                                diff_str_list.append(f"({field} == {pseudo_value})")
+                        
+                        # Join conditions with '&&' instead of commas
+                        diff_str = " && ".join(diff_str_list)
+                        when_condition = f"{diff_str}"
+
+                    yaml_content[instr_name_with_periods]['pseudoinstructions'].append({
+                        'when': when_condition,
+                        'to': f"{pseudo}",
+                    })
+
+
             # Add pseudoinstruction field for origin instructions
             if 'pseudo_ops' in instr_data:
                 pseudo_list = [pseudo.replace('_', '.') for pseudo in instr_data['pseudo_ops']]
@@ -417,6 +472,267 @@ def make_yaml(instr_dict):
                 outfile.write(yaml_string)
     
     print("Summary of all extensions saved as yaml_output/extensions_summary.yaml")
+def create_inst_dict(file_filter, include_pseudo=False, include_pseudo_ops=[]):
+    '''
+    This function return a dictionary containing all instructions associated
+    with an extension defined by the file_filter input. The file_filter input
+    needs to be rv* file name with out the 'rv' prefix i.e. '_i', '32_i', etc.
+
+    Each node of the dictionary will correspond to an instruction which again is
+    a dictionary. The dictionary contents of each instruction includes:
+        - variables: list of arguments used by the instruction whose mapping
+          exists in the arg_lut dictionary
+        - encoding: this contains the 32-bit encoding of the instruction where
+          '-' is used to represent position of arguments and 1/0 is used to
+          reprsent the static encoding of the bits
+        - extension: this field contains the rv* filename from which this
+          instruction was included
+        - match: hex value representing the bits that need to match to detect
+          this instruction
+        - mask: hex value representin the bits that need to be masked to extract
+          the value required for matching.
+
+    In order to build this dictionary, the function does 2 passes over the same
+    rv<file_filter> file. The first pass is to extract all standard
+    instructions. In this pass, all pseudo ops and imported instructions are
+    skipped. For each selected line of the file, we call process_enc_line
+    function to create the above mentioned dictionary contents of the
+    instruction. Checks are performed in this function to ensure that the same
+    instruction is not added twice to the overall dictionary.
+
+    In the second pass, this function parses only pseudo_ops. For each pseudo_op
+    this function checks if the dependent extension and instruction, both, exist
+    before parsing it. The pseudo op is only added to the overall dictionary if
+    the dependent instruction is not present in the dictionary, else it is
+    skipped.
+
+
+    '''
+    opcodes_dir = os.path.dirname(os.path.realpath(__file__))
+    instr_dict = {}
+
+    # file_names contains all files to be parsed in the riscv-opcodes directory
+    file_names = []
+    for fil in file_filter:
+        file_names += glob.glob(f'{opcodes_dir}/{fil}')
+    file_names.sort(reverse=True)
+    # first pass if for standard/regular instructions
+    logging.debug('Collecting standard instructions first')
+    for f in file_names:
+        logging.debug(f'Parsing File: {f} for standard instructions')
+        with open(f) as fp:
+            lines = (line.rstrip()
+                     for line in fp)  # All lines including the blank ones
+            lines = list(line for line in lines if line)  # Non-blank lines
+            lines = list(
+                line for line in lines
+                if not line.startswith("#"))  # remove comment lines
+
+        # go through each line of the file
+        for line in lines:
+            # if the an instruction needs to be imported then go to the
+            # respective file and pick the line that has the instruction.
+            # The variable 'line' will now point to the new line from the
+            # imported file
+
+            # ignore all lines starting with $import and $pseudo
+            if '$import' in line or '$pseudo' in line:
+                continue
+            logging.debug(f'     Processing line: {line}')
+
+            # call process_enc_line to get the data about the current
+            # instruction
+            (name, single_dict) = process_enc_line(line, f)
+            ext_name = os.path.basename(f)
+
+            # if an instruction has already been added to the filtered
+            # instruction dictionary throw an error saying the given
+            # instruction is already imported and raise SystemExit
+            if name in instr_dict:
+                var = instr_dict[name]["extension"]
+                if same_base_isa(ext_name, var):
+                    # disable same names on the same base ISA
+                    err_msg = f'instruction : {name} from '
+                    err_msg += f'{ext_name} is already '
+                    err_msg += f'added from {var} in same base ISA'
+                    logging.error(err_msg)
+                    raise SystemExit(1)
+                elif instr_dict[name]['encoding'] != single_dict['encoding']:
+                    # disable same names with different encodings on different base ISAs
+                    err_msg = f'instruction : {name} from '
+                    err_msg += f'{ext_name} is already '
+                    err_msg += f'added from {var} but each have different encodings in different base ISAs'
+                    logging.error(err_msg)
+                    raise SystemExit(1)
+                instr_dict[name]['extension'].extend(single_dict['extension'])
+            else:
+              for key in instr_dict:
+                  item = instr_dict[key]
+                  if overlaps(item['encoding'], single_dict['encoding']) and \
+                    not extension_overlap_allowed(ext_name, item['extension'][0]) and \
+                    not instruction_overlap_allowed(name, key) and \
+                    same_base_isa(ext_name, item['extension']):
+                      # disable different names with overlapping encodings on the same base ISA
+                      err_msg = f'instruction : {name} in extension '
+                      err_msg += f'{ext_name} overlaps instruction {key} '
+                      err_msg += f'in extension {item["extension"]}'
+                      logging.error(err_msg)
+                      raise SystemExit(1)
+
+            if name not in instr_dict:
+                # update the final dict with the instruction
+                instr_dict[name] = single_dict
+
+    # second pass if for pseudo instructions
+    logging.debug('Collecting pseudo instructions now')
+    for f in file_names:
+        logging.debug(f'Parsing File: {f} for pseudo_ops')
+        with open(f) as fp:
+            lines = (line.rstrip()
+                     for line in fp)  # All lines including the blank ones
+            lines = list(line for line in lines if line)  # Non-blank lines
+            lines = list(
+                line for line in lines
+                if not line.startswith("#"))  # remove comment lines
+
+        # go through each line of the file
+        for line in lines:
+
+            # ignore all lines not starting with $pseudo
+            if '$pseudo' not in line:
+                continue
+            logging.debug(f'     Processing line: {line}')
+
+            # use the regex pseudo_regex from constants.py to find the dependent
+            # extension, dependent instruction, the pseudo_op in question and
+            # its encoding
+            (ext, orig_inst, pseudo_inst, line) = pseudo_regex.findall(line)[0]
+            ext_file = f'{opcodes_dir}/{ext}'
+
+            # check if the file of the dependent extension exist. Throw error if
+            # it doesn't
+            if not os.path.exists(ext_file):
+                ext1_file = f'{opcodes_dir}/unratified/{ext}'
+                if not os.path.exists(ext1_file):
+                    logging.error(f'Pseudo op {pseudo_inst} in {f} depends on {ext} which is not available')
+                    raise SystemExit(1)
+                else:
+                    ext_file = ext1_file
+
+            # check if the dependent instruction exist in the dependent
+            # extension. Else throw error.
+            found = False
+            for oline in open(ext_file):
+                if not re.findall(f'^\\s*{orig_inst}\\s+',oline):
+                    continue
+                else:
+                    found = True
+                    break
+            if not found:
+                logging.error(f'Orig instruction {orig_inst} not found in {ext}. Required by pseudo_op {pseudo_inst} present in {f}')
+                raise SystemExit(1)
+
+
+            (name, single_dict) = process_enc_line(pseudo_inst + ' ' + line, f)
+            # add the pseudo_op to the dictionary only if the original
+            # instruction is not already in the dictionary.
+            if orig_inst.replace('.','_') not in instr_dict \
+                    or include_pseudo \
+                    or name in include_pseudo_ops:
+
+                # update the final dict with the instruction
+                if name not in instr_dict:
+                    single_dict['original_instruction'] = orig_inst
+                    instr_dict[name] = single_dict
+                    logging.debug(f'        including pseudo_ops:{name}')
+                else:
+                    if(single_dict['match'] != instr_dict[name]['match']):
+                        instr_dict[name + '_pseudo'] = single_dict
+
+                    # if a pseudo instruction has already been added to the filtered
+                    # instruction dictionary but the extension is not in the current
+                    # list, add it
+                    else:
+                        ext_name = single_dict['extension']
+
+                    if (ext_name not in instr_dict[name]['extension']) & (name + '_pseudo' not in instr_dict):
+                        instr_dict[name]['extension'].extend(ext_name)
+            else:
+                logging.debug(f'        Skipping pseudo_op {pseudo_inst} since original instruction {orig_inst} already selected in list')
+
+    # third pass if for imported instructions
+    logging.debug('Collecting imported instructions')
+    for f in file_names:
+        logging.debug(f'Parsing File: {f} for imported ops')
+        with open(f) as fp:
+            lines = (line.rstrip()
+                     for line in fp)  # All lines including the blank ones
+            lines = list(line for line in lines if line)  # Non-blank lines
+            lines = list(
+                line for line in lines
+                if not line.startswith("#"))  # remove comment lines
+
+        # go through each line of the file
+        for line in lines:
+            # if the an instruction needs to be imported then go to the
+            # respective file and pick the line that has the instruction.
+            # The variable 'line' will now point to the new line from the
+            # imported file
+
+            # ignore all lines starting with $import and $pseudo
+            if '$import' not in line :
+                continue
+            logging.debug(f'     Processing line: {line}')
+
+            (import_ext, reg_instr) = imported_regex.findall(line)[0]
+            import_ext_file = f'{opcodes_dir}/{import_ext}'
+
+            # check if the file of the dependent extension exist. Throw error if
+            # it doesn't
+            if not os.path.exists(import_ext_file):
+                ext1_file = f'{opcodes_dir}/unratified/{import_ext}'
+                if not os.path.exists(ext1_file):
+                    logging.error(f'Instruction {reg_instr} in {f} cannot be imported from {import_ext}')
+                    raise SystemExit(1)
+                else:
+                    ext_file = ext1_file
+            else:
+                ext_file = import_ext_file
+
+            # check if the dependent instruction exist in the dependent
+            # extension. Else throw error.
+            found = False
+            for oline in open(ext_file):
+                if not re.findall(f'^\\s*{reg_instr}\\s+',oline):
+                    continue
+                else:
+                    found = True
+                    break
+            if not found:
+                logging.error(f'imported instruction {reg_instr} not found in {ext_file}. Required by {line} present in {f}')
+                logging.error(f'Note: you cannot import pseudo/imported ops.')
+                raise SystemExit(1)
+
+            # call process_enc_line to get the data about the current
+            # instruction
+            (name, single_dict) = process_enc_line(oline, f)
+
+            # if an instruction has already been added to the filtered
+            # instruction dictionary throw an error saying the given
+            # instruction is already imported and raise SystemExit
+            if name in instr_dict:
+                var = instr_dict[name]["extension"]
+                if instr_dict[name]['encoding'] != single_dict['encoding']:
+                    err_msg = f'imported instruction : {name} in '
+                    err_msg += f'{os.path.basename(f)} is already '
+                    err_msg += f'added from {var} but each have different encodings for the same instruction'
+                    logging.error(err_msg)
+                    raise SystemExit(1)
+                instr_dict[name]['extension'].extend(single_dict['extension'])
+            else:
+                # update the final dict with the instruction
+                instr_dict[name] = single_dict
+    return instr_dict
 
 
 if __name__ == "__main__":
@@ -430,6 +746,6 @@ if __name__ == "__main__":
 
     if '-yaml' in sys.argv[1: ]:
         instr_dict = create_inst_dict(extensions,True)  # make sure instr_dict is created
-        make_yaml(instr_dict)
+        pseudo_map = make_pseudo_list(instr_dict)
+        make_yaml(instr_dict, pseudo_map)
         logging.info('instr.yaml generated successfully')
-
